@@ -1,10 +1,13 @@
 # CORS PoC (local lab)
-case 1 reflections
+
+# case 1 reflections
 Access-Control-Allow-Origin: https://malicious-website.com
+
 Access-Control-Allow-Credentials: true
 
-case 2 null origin
+# case 2 null origin
 Access-Control-Allow-Origin: null
+
 Access-Control-Allow-Credentials: true
 
 Now you can send a single “deliver” link such as:
