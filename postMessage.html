@@ -92,7 +92,7 @@ window.addEventListener("message", (e) => {
 
   // ---------- Vulnerable parent listener (demonstrates the bug) ----------
   window.addEventListener('message', (e) => {
-    // ❌ VULNERABLE: no origin/source verification — accepts any sender that matches uuid
+    //VULNERABLE: no origin/source verification — accepts any sender that matches uuid
     if (e && typeof e.data === 'object' && e.data.uuid && e.data.uuid === CURRENT_UUID) {
       log(`${whoSent(e)}  [Parent] DISPATCH (vulnerable): origin=${String(e.origin)} event=${e.data.event} data=${JSON.stringify(e.data)}`);
     } else {
@@ -151,8 +151,8 @@ window.addEventListener("message", (e) => {
 
     window.addEventListener('message', (e) => {
       if (!expectedOrigin || !childWindow) return;
-      if (e.origin !== expectedOrigin) return;            // ✅ origin check
-      if (e.source !== childWindow) return;               // ✅ window identity check
+      if (e.origin !== expectedOrigin) return;            // origin check
+      if (e.source !== childWindow) return;               // window identity check
       if (e && typeof e.data === 'object' && e.data.uuid === CURRENT_UUID) {
         log(`[from WIDGET]  [Parent] DISPATCH (hardened): origin=${String(e.origin)} event=${e.data.event} data=${JSON.stringify(e.data)}`);
       }
