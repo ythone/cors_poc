@@ -7,7 +7,7 @@
   #log { white-space: pre-wrap; background: #111; color: #0f0; padding: 10px; border-radius: 8px; min-height: 140px; }
   iframe { border: 1px solid #ccc; }
   .row { margin: 8px 0; }
-  .muted { color: #666; }
+  .muted { color: #888; }
 </style>
 
 <h1>PoC: Missing <code>e.origin</code>/<code>e.source</code> validation</h1>
@@ -60,10 +60,13 @@ window.addEventListener("message", (e) => {
 <script>
   // ---------- Utilities ----------
   const $ = (id) => document.getElementById(id);
-  function log(...args){
-    const line = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ');
+  function logLine(text){
     const el = $('log');
-    el.textContent = (el.textContent === '(no events yet)' ? '' : el.textContent + '\n') + line;
+    el.textContent = (el.textContent === '(no events yet)' ? '' : el.textContent + '\n') + text;
+  }
+  function log(...args){
+    const line = args.map(a => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ');
+    logLine(line);
   }
   function getUuidFrom(url){
     try { return new URL(url).searchParams.get('uuid') || ''; }
@@ -76,14 +79,24 @@ window.addEventListener("message", (e) => {
     CURRENT_UUID = getUuidFrom($('widgetUrl').value);
   });
 
+  // ---------- Helper to label source (widget vs attacker) ----------
+  const victim = document.getElementById('victim');
+  function whoSent(e){
+    try { return (e.source === victim.contentWindow) ? '[from WIDGET]' : '[from ATTACKER/other]'; }
+    catch(_){ return '[from ATTACKER/other]'; }
+  }
+  // Console tap to help screenshots / devtools
+  window.addEventListener('message', (e) => {
+    console.log(whoSent(e), 'origin=', e.origin, 'data=', e.data);
+  });
+
   // ---------- Vulnerable parent listener (demonstrates the bug) ----------
   window.addEventListener('message', (e) => {
     // ❌ VULNERABLE: no origin/source verification — accepts any sender that matches uuid
     if (e && typeof e.data === 'object' && e.data.uuid && e.data.uuid === CURRENT_UUID) {
-      log('[Parent] DISPATCH (vulnerable): origin =', String(e.origin),
-          ' event =', e.data.event, ' data =', e.data);
+      log(`${whoSent(e)}  [Parent] DISPATCH (vulnerable): origin=${String(e.origin)} event=${e.data.event} data=${JSON.stringify(e.data)}`);
     } else {
-      log('[Parent] Ignored message:', { origin: e.origin, data: e.data });
+      log(`${whoSent(e)}  [Parent] Ignored message: origin=${String(e.origin)} data=${JSON.stringify(e.data)}`);
     }
   });
 
@@ -118,4 +131,32 @@ window.addEventListener("message", (e) => {
     sendConfigToAttacker(uuid, evt, amt, cur);
     log('[Parent] Asked attacker to forge message with uuid =', uuid);
   };
+
+  // ---------- (Optional) Hardened listener (contrast / fix) ----------
+  // Uncomment this block to demonstrate the proper fix that rejects the forged message:
+  /*
+  (function addHardenedListener(){
+    let expectedOrigin = null;
+    let childWindow = null;
+
+    const setHandles = () => {
+      try {
+        const url = $('widgetUrl').value.trim();
+        expectedOrigin = new URL(url).origin;             // e.g., https://multipay.staging.komoju-dev.com
+      } catch(_) { expectedOrigin = null; }
+      childWindow = $('victim').contentWindow || null;
+    };
+    setHandles();
+    $('embed').addEventListener('click', () => setTimeout(setHandles, 0));
+
+    window.addEventListener('message', (e) => {
+      if (!expectedOrigin || !childWindow) return;
+      if (e.origin !== expectedOrigin) return;            // ✅ origin check
+      if (e.source !== childWindow) return;               // ✅ window identity check
+      if (e && typeof e.data === 'object' && e.data.uuid === CURRENT_UUID) {
+        log(`[from WIDGET]  [Parent] DISPATCH (hardened): origin=${String(e.origin)} event=${e.data.event} data=${JSON.stringify(e.data)}`);
+      }
+    });
+  })();
+  */
 </script>
