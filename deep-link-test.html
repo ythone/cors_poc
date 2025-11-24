@@ -45,7 +45,7 @@
   </a>
 
   <h2>XSS</h2>
-   <a href="wienapp://example.com/search?url=data:text/html,<script>document.write('<img src=x onerror=alert(document.cookie)>')</script>">
+   <a href="wienapp://example.com/search?url=https://example.com/search?q=%3Cscript%3Ealert('XSS')%3C/script%3E">
     wienapp://example.com/search?url=javascript:alert('XSS')
   </a>
 </body>
