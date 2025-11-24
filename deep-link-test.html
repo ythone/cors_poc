@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>WienApp Deep Link POC</title>
+</head>
+<body>
+  <h1>Deep Link Test</h1>
+  <p>
+    Click the link below to trigger the app’s <code>wienapp://</code> handler.  
+    Because the manifest allows wildcard hosts, any value after <code>wienapp://</code> will be routed to the exported activity.
+  </p>
+
+  <a href="wienapp://example.com/search?query=bugbounty&token=test123">
+    Launch wienapp://example.com/search?query=bugbounty&token=test123
+  </a>
+</body>
+</html>
