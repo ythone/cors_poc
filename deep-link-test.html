@@ -44,8 +44,8 @@
     wienapp://example.com/search?query=bugbounty&token=test123
   </a>
 
-   <a href="wienapp://example.com/search?query=<script>alert(1)</script>">
-    wienapp://example.com/search?query=bugbounty&token=test123
+   <a href="wienapp://example.com/search?url=javascript:alert('XSS')">
+    wienapp://example.com/search?url=javascript:alert('XSS')
   </a>
 </body>
 </html>
