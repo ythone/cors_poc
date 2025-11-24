@@ -45,7 +45,7 @@
   </a>
 
   <h2>XSS from URL</h2>
-   <a href="wienapp://example.com/search?url=https://ythone.github.io/cors_poc/xss.html">
+   <a href="wienapp://app/content?markdown=<img src=x onerror=alert('XSS')>">
     wienapp://example.com/search?url=javascript:alert('XSS')
   </a>
 </body>
